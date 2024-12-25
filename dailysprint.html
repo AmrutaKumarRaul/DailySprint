@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #e0e7ff;
+        }
+        .clock {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 5px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .clock::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: #000;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 10;
+        }
+        .hand {
+            width: 50%;
+            height: 2px;
+            background: #000;
+            position: absolute;
+            transform-origin: 100%;
+            transform: rotate(90deg);
+        }
+        .hand.minute {
+            height: 3px;
+            background: #000;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-4">
+        <div class="flex justify-between items-center mb-4">
+            <div class="text-3xl font-bold">Daily Task Manager</div>
+            <button id="completeAll" class="bg-blue-500 text-white px-4 py-2 rounded">Mark All Complete</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Timer Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div id="currentTime" class="text-2xl font-bold mb-2">00:00:00</div>
+                <div class="text-sm text-gray-500 mb-4">Today's Tasks</div>
+                <button id="addTask" class="bg-blue-500 text-white px-4 py-2 rounded w-full">Add Task</button>
+            </div>
+            <!-- Task List Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div class="text-xl font-bold mb-2">Task List</div>
+                <ul id="taskList" class="space-y-2">
+                    <!-- Dynamic tasks will be added here -->
+                </ul>
+            </div>
+            <!-- Calendar Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div class="text-xl font-bold mb-2">Calendar</div>
+                <div id="calendar" class="grid grid-cols-7 gap-2 text-center">
+                    <!-- Calendar days will be populated dynamically -->
+                </div>
+            </div>
+            <!-- Notes Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div class="text-xl font-bold mb-2">Quick Notes</div>
+                <textarea id="quickNotes" class="w-full p-2 border rounded" rows="4" placeholder="Write your notes here..."></textarea>
+            </div>
+            <!-- Total Time Spent Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div class="text-xl font-bold mb-2">Total Time Spent</div>
+                <div id="totalTime" class="text-2xl font-bold text-blue-500">00:00:00</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dynamic Clock
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('currentTime').textContent = timeString;
+        }
+        setInterval(updateClock, 1000);
+
+        // Task Management
+        const taskList = document.getElementById('taskList');
+        const calendar = document.getElementById('calendar');
+        const totalTimeElement = document.getElementById('totalTime');
+        const completeAllBtn = document.getElementById('completeAll');
+        let tasks = [];
+        let taskTimers = {};
+        let totalElapsedTime = 0;
+
+        document.getElementById('addTask').addEventListener('click', () => {
+            const taskName = prompt('Enter task name:');
+            if (taskName) {
+                const task = { name: taskName, completed: false, startTime: new Date(), elapsedTime: 0 };
+                tasks.push(task);
+                renderTasks();
+            }
+        });
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+            tasks.forEach((task, index) => {
+                const taskItem = document.createElement('li');
+                taskItem.className = 'flex justify-between items-center';
+
+                const taskName = document.createElement('span');
+                taskName.textContent = task.name;
+                taskName.className = task.completed ? 'line-through' : '';
+
+                const taskTimer = document.createElement('span');
+                taskTimer.id = `task-timer-${index}`;
+                taskTimer.className = 'text-gray-500';
+                if (!task.completed) {
+                    startTimer(index, task);
+                } else {
+                    taskTimer.textContent = 'Completed';
+                }
+
+                const actionButtons = document.createElement('div');
+                actionButtons.className = 'flex space-x-2';
+
+                const completeButton = document.createElement('button');
+                completeButton.innerHTML = '<i class="fas fa-check"></i>';
+                completeButton.className = 'text-green-500';
+                completeButton.addEventListener('click', () => toggleTask(index));
+
+                const removeButton = document.createElement('button');
+                removeButton.innerHTML = '<i class="fas fa-trash"></i>';
+                removeButton.className = 'text-red-500';
+                removeButton.addEventListener('click', () => removeTask(index));
+
+                actionButtons.appendChild(completeButton);
+                actionButtons.appendChild(removeButton);
+
+                taskItem.appendChild(taskName);
+                taskItem.appendChild(taskTimer);
+                taskItem.appendChild(actionButtons);
+                taskList.appendChild(taskItem);
+            });
+            updateCalendar();
+        }
+
+        function toggleTask(index) {
+            const task = tasks[index];
+            if (!task.completed) {
+                const now = new Date();
+                const elapsed = Math.floor((now - task.startTime) / 1000);
+                task.elapsedTime += elapsed;
+                totalElapsedTime += task.elapsedTime;
+                task.completed = true;
+                updateTotalTime();
+                clearInterval(taskTimers[index]);
+            }
+            renderTasks();
+        }
+
+        function removeTask(index) {
+            const task = tasks[index];
+            if (!task.completed) {
+                clearInterval(taskTimers[index]);
+            } else {
+                totalElapsedTime -= task.elapsedTime;
+                updateTotalTime();
+            }
+            tasks.splice(index, 1);
+            renderTasks();
+        }
+
+        function startTimer(index, task) {
+            taskTimers[index] = setInterval(() => {
+                const now = new Date();
+                const elapsed = Math.floor((now - task.startTime) / 1000);
+                const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+                const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+                const seconds = String(elapsed % 60).padStart(2, '0');
+                document.getElementById(`task-timer-${index}`).textContent = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        function updateTotalTime() {
+            const hours = String(Math.floor(totalElapsedTime / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalElapsedTime % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalElapsedTime % 60).padStart(2, '0');
+            totalTimeElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        // Dynamic Calendar
+        function updateCalendar() {
+            const now = new Date();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            calendar.innerHTML = '';
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.textContent = day;
+                dayDiv.className = 'p-2 rounded';
+
+                if (day === now.getDate()) {
+                    const hasCompletedTasks = tasks.some(task => task.completed);
+                    dayDiv.classList.add(hasCompletedTasks ? 'bg-green-500' : 'bg-red-500');
+                    dayDiv.classList.add('text-white');
+                } else if (day < now.getDate()) {
+                    // Check completed tasks for past days
+                    const completedTasks = tasks.filter(task => {
+                        const taskDate = new Date(task.startTime).getDate();
+                        return task.completed && taskDate === day;
+                    });
+                    dayDiv.classList.add(completedTasks.length > 0 ? 'bg-green-500' : 'bg-red-500');
+                    dayDiv.classList.add('text-white');
+                }
+
+                calendar.appendChild(dayDiv);
+            }
+        }
+        updateCalendar();
+    </script>
+</body>
+</html>
